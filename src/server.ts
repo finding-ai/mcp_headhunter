@@ -44,7 +44,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', server: 'ao-analyzer-mcp', version: '1.0.0' });
 });
 
-// SSE endpoint for Dust MCP discovery
+// ⭐ SSE endpoint for Dust MCP discovery (NOUVEAU !)
 app.get('/mcp', (req, res) => {
   console.log('[SSE] New connection');
   
@@ -131,9 +131,7 @@ app.post('/mcp', async (req, res) => {
 // Export for Vercel
 export default app;
 
-// Local dev server
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log('✅ Server started on port', PORT);
-  });
-}
+// Start server (Fly.io + local dev)
+app.listen(PORT, () => {
+  console.log(`✅ Server started on port ${PORT}`);
+});
