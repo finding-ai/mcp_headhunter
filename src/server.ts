@@ -134,4 +134,8 @@ export default app;
 // Start server (Fly.io + local dev)
 app.listen(PORT, () => {
   console.log(`✅ Server started on port ${PORT}`);
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> c3f02cf772b9c022ca1f8f54a9eb5511dfb1632e
