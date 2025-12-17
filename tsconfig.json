@@ -1,29 +1,14 @@
-<<<<<<< HEAD
 {
-    "compilerOptions": {
-      "target": "ES2022",
-      "module": "ES2022",
-      "moduleResolution": "node",
-      "esModuleInterop": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-      "strict": false,
-      "skipLibCheck": true
-    },
-    "include": ["src/**/*"]
-  }
-=======
-{
-    "compilerOptions": {
-      "target": "ES2022",
-      "module": "ES2022",
-      "moduleResolution": "node",
-      "esModuleInterop": true,
-      "outDir": "./dist",
-      "rootDir": "./src",
-      "strict": false,
-      "skipLibCheck": true
-    },
-    "include": ["src/**/*"]
-  }
->>>>>>> 2a3a13ef52e102fd30aa35158b797c1de5d2c9ce
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"]
+}
