@@ -128,13 +128,31 @@ app.post("/messages", async (req, res) => {
 });
 
 // Root endpoint
-app.get("/", (req, res) => {
-  res.json({
-    name: "HeadHunter Scrapers MCP",
-    version: "1.0.0",
-    transport: "SSE",
-    tools: ["scrape_recruitcrm", "scrape_turnover"],
-  });
+app.get("/", async (req, res) => {
+  const accept = req.headers.accept || '';
+  
+  // Si Dust demande du SSE, on lui donne
+  if (accept.includes('text/event-stream')) {
+    console.log("📡 SSE connection on root endpoint");
+    
+    const transport = new SSEServerTransport("/messages", res);
+    transports.set(transport.sessionId, transport);
+
+    res.on("close", () => {
+      transports.delete(transport.sessionId);
+      console.log(`🔌 Closed: \${transport.sessionId}`);
+    });
+
+    await server.connect(transport);
+  } else {
+    // Requête normale = info JSON
+    res.json({
+      name: "HeadHunter Scrapers MCP",
+      version: "1.0.0",
+      transport: "SSE",
+      tools: ["scrape_recruitcrm", "scrape_turnover"],
+    });
+  }
 });
 
 // ============================================
