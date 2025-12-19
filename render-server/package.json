@@ -1,0 +1,22 @@
+{
+  "name": "headhunter-scraper-server",
+  "version": "1.0.0",
+  "description": "Serveur de scraping pour HeadHunter AI",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "playwright": "^1.40.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -9,8 +9,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
+    "@playwright/test": "^1.57.0",
     "@supabase/supabase-js": "^2.39.0",
     "agents": "latest",
+    "dotenv": "^17.2.3",
+    "playwright": "^1.57.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
