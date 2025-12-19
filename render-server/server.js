@@ -114,6 +114,21 @@ app.get("/sse", async (req, res) => {
   await server.connect(transport);
 });
 
+// MCP endpoint (pour Dust - copie de /sse)
+app.get("/mcp", async (req, res) => {
+  console.log("📡 MCP SSE connection");
+  
+  const transport = new SSEServerTransport("/messages", res);
+  transports.set(transport.sessionId, transport);
+  
+  res.on("close", () => {
+    transports.delete(transport.sessionId);
+    console.log(`🔌 MCP connection closed: \${transport.sessionId}`);
+  });
+  
+  await server.connect(transport);
+});
+
 // Messages endpoint
 app.post("/messages", async (req, res) => {
   const sessionId = req.query.sessionId;
