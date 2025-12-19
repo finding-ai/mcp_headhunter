@@ -20,65 +20,24 @@ const server = new McpServer({
 });
 
 // ============================================
-// REGISTER TOOLS
+// REGISTER TOOLS (API correcte)
 // ============================================
 
 // Tool 1: Scrape RecruitCRM
-server.setRequestHandler("tools/list", async () => {
-  return {
-    tools: [
-      {
-        name: "scrape_recruitcrm",
-        description: "Scrape candidates from RecruitCRM with a boolean search query",
-        inputSchema: {
-          type: "object",
-          properties: {
-            searchQuery: {
-              type: "string",
-              description: 'Boolean search query (e.g. "SOC AND CTI")',
-            },
-            maxResults: {
-              type: "number",
-              description: "Maximum number of candidates to scrape",
-              default: 50,
-            },
-          },
-          required: ["searchQuery"],
-        },
-      },
-      {
-        name: "scrape_turnover",
-        description: "Scrape candidates from Turnover IT",
-        inputSchema: {
-          type: "object",
-          properties: {
-            searchQuery: {
-              type: "string",
-              description: "Boolean search query",
-            },
-            maxResults: {
-              type: "number",
-              default: 50,
-            },
-          },
-          required: ["searchQuery"],
-        },
-      },
-    ],
-  };
-});
-
-// Tool execution
-server.setRequestHandler("tools/call", async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    if (name === "scrape_recruitcrm") {
-      console.log(`🚀 Scraping RecruitCRM: "${args.searchQuery}"`);
+server.tool(
+  "scrape_recruitcrm",
+  "Scrape candidates from RecruitCRM with a boolean search query",
+  {
+    searchQuery: z.string().describe('Boolean search query (e.g. "SOC AND CTI")'),
+    maxResults: z.number().default(50).describe("Maximum number of candidates"),
+  },
+  async (params) => {
+    try {
+      console.log(`🚀 Scraping RecruitCRM: "${params.searchQuery}"`);
 
       const result = await scrapeRecruitCRM(
-        args.searchQuery,
-        args.maxResults || 50
+        params.searchQuery,
+        params.maxResults
       );
 
       return {
@@ -89,36 +48,43 @@ server.setRequestHandler("tools/call", async (request) => {
           },
         ],
       };
-    }
-
-    if (name === "scrape_turnover") {
+    } catch (error) {
+      console.error("❌ Scrape error:", error);
       return {
         content: [
           {
             type: "text",
-            text: "Turnover scraper coming soon",
+            text: `Error: ${error.message}`,
           },
         ],
+        isError: true,
       };
     }
+  }
+);
 
-    throw new Error(`Unknown tool: ${name}`);
-  } catch (error) {
-    console.error("❌ Tool error:", error);
+// Tool 2: Scrape Turnover
+server.tool(
+  "scrape_turnover",
+  "Scrape candidates from Turnover IT",
+  {
+    searchQuery: z.string().describe("Boolean search query"),
+    maxResults: z.number().default(50),
+  },
+  async (params) => {
     return {
       content: [
         {
           type: "text",
-          text: `Error: ${error.message}`,
+          text: "Turnover scraper coming soon",
         },
       ],
-      isError: true,
     };
   }
-});
+);
 
 // ============================================
-// SSE ENDPOINTS (Required by Dust)
+// SSE ENDPOINTS
 // ============================================
 
 app.use(express.json());
@@ -142,13 +108,13 @@ app.get("/sse", async (req, res) => {
   // Cleanup on close
   res.on("close", () => {
     transports.delete(transport.sessionId);
-    console.log(`🔌 SSE connection closed: ${transport.sessionId}`);
+    console.log(`🔌 Closed: ${transport.sessionId}`);
   });
 
   await server.connect(transport);
 });
 
-// Messages endpoint - Handle requests
+// Messages endpoint
 app.post("/messages", async (req, res) => {
   const sessionId = req.query.sessionId;
   const transport = transports.get(sessionId);
@@ -166,23 +132,17 @@ app.get("/", (req, res) => {
   res.json({
     name: "HeadHunter Scrapers MCP",
     version: "1.0.0",
-    protocol: "MCP with SSE transport",
-    endpoints: {
-      health: "GET /health",
-      sse: "GET /sse",
-      messages: "POST /messages?sessionId=<id>",
-    },
+    transport: "SSE",
     tools: ["scrape_recruitcrm", "scrape_turnover"],
   });
 });
 
 // ============================================
-// START SERVER
+// START
 // ============================================
 
 app.listen(PORT, () => {
-  console.log(`🚀 MCP Server with SSE running on port ${PORT}`);
+  console.log(`🚀 MCP Server with SSE on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/health`);
   console.log(`📡 SSE: http://localhost:${PORT}/sse`);
-  console.log(`✉️  Messages: http://localhost:${PORT}/messages`);
 });
