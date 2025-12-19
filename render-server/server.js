@@ -1,72 +1,67 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { createServer } from 'http';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import express from "express";
+import { z } from "zod";
 import { scrapeRecruitCRM } from './scrapers/recruitcrm.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ============================================
-// 1. CRÉATION DU SERVEUR MCP
-// ============================================
-const mcpServer = new Server(
-  {
-    name: 'headhunter-scrapers',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
+// Store active transports
+const transports = new Map();
+
+// Create MCP Server
+const server = new McpServer({
+  name: "headhunter-scrapers",
+  version: "1.0.0",
+});
 
 // ============================================
-// 2. ENREGISTREMENT DES TOOLS
+// REGISTER TOOLS
 // ============================================
 
 // Tool 1: Scrape RecruitCRM
-mcpServer.setRequestHandler('tools/list', async () => {
+server.setRequestHandler("tools/list", async () => {
   return {
     tools: [
       {
-        name: 'scrape_recruitcrm',
-        description: 'Scrape candidates from RecruitCRM with a boolean search query',
+        name: "scrape_recruitcrm",
+        description: "Scrape candidates from RecruitCRM with a boolean search query",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             searchQuery: {
-              type: 'string',
+              type: "string",
               description: 'Boolean search query (e.g. "SOC AND CTI")',
             },
             maxResults: {
-              type: 'number',
-              description: 'Maximum number of candidates to scrape',
+              type: "number",
+              description: "Maximum number of candidates to scrape",
               default: 50,
             },
           },
-          required: ['searchQuery'],
+          required: ["searchQuery"],
         },
       },
       {
-        name: 'scrape_turnover',
-        description: 'Scrape candidates from Turnover IT with a boolean search query',
+        name: "scrape_turnover",
+        description: "Scrape candidates from Turnover IT",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             searchQuery: {
-              type: 'string',
-              description: 'Boolean search query',
+              type: "string",
+              description: "Boolean search query",
             },
             maxResults: {
-              type: 'number',
-              description: 'Maximum number of candidates',
+              type: "number",
               default: 50,
             },
           },
-          required: ['searchQuery'],
+          required: ["searchQuery"],
         },
       },
     ],
@@ -74,13 +69,13 @@ mcpServer.setRequestHandler('tools/list', async () => {
 });
 
 // Tool execution
-mcpServer.setRequestHandler('tools/call', async (request) => {
+server.setRequestHandler("tools/call", async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    if (name === 'scrape_recruitcrm') {
-      console.log(`🚀 Executing scrape_recruitcrm with query: "${args.searchQuery}"`);
-      
+    if (name === "scrape_recruitcrm") {
+      console.log(`🚀 Scraping RecruitCRM: "${args.searchQuery}"`);
+
       const result = await scrapeRecruitCRM(
         args.searchQuery,
         args.maxResults || 50
@@ -89,30 +84,31 @@ mcpServer.setRequestHandler('tools/call', async (request) => {
       return {
         content: [
           {
-            type: 'text',
+            type: "text",
             text: JSON.stringify(result, null, 2),
           },
         ],
       };
-    } else if (name === 'scrape_turnover') {
-      // TODO: À implémenter
+    }
+
+    if (name === "scrape_turnover") {
       return {
         content: [
           {
-            type: 'text',
-            text: 'Turnover scraper coming soon',
+            type: "text",
+            text: "Turnover scraper coming soon",
           },
         ],
       };
-    } else {
-      throw new Error(`Unknown tool: ${name}`);
     }
+
+    throw new Error(`Unknown tool: ${name}`);
   } catch (error) {
-    console.error('❌ Tool execution error:', error);
+    console.error("❌ Tool error:", error);
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: `Error: ${error.message}`,
         },
       ],
@@ -122,108 +118,71 @@ mcpServer.setRequestHandler('tools/call', async (request) => {
 });
 
 // ============================================
-// 3. SERVEUR HTTP POUR RENDER
+// SSE ENDPOINTS (Required by Dust)
 // ============================================
 
-const httpServer = createServer(async (req, res) => {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+app.use(express.json());
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
+// Health check
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "headhunter-scrapers-mcp",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// SSE endpoint - Initialize transport
+app.get("/sse", async (req, res) => {
+  console.log("📡 New SSE connection");
+
+  const transport = new SSEServerTransport("/messages", res);
+  transports.set(transport.sessionId, transport);
+
+  // Cleanup on close
+  res.on("close", () => {
+    transports.delete(transport.sessionId);
+    console.log(`🔌 SSE connection closed: ${transport.sessionId}`);
+  });
+
+  await server.connect(transport);
+});
+
+// Messages endpoint - Handle requests
+app.post("/messages", async (req, res) => {
+  const sessionId = req.query.sessionId;
+  const transport = transports.get(sessionId);
+
+  if (!transport) {
+    res.status(404).json({ error: "Session not found" });
     return;
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  await transport.handlePostMessage(req, res);
+});
 
-  // Health check
-  if (url.pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      service: 'headhunter-scrapers-mcp',
-      timestamp: new Date().toISOString(),
-    }));
-    return;
-  }
-
-  // MCP endpoint
-  if (url.pathname === '/mcp' && req.method === 'POST') {
-    let body = '';
-    
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-
-    req.on('end', async () => {
-      try {
-        const request = JSON.parse(body);
-        
-        // Route vers le bon handler MCP
-        let response;
-        
-        if (request.method === 'tools/list') {
-          const handler = mcpServer.getRequestHandler('tools/list');
-          response = await handler(request);
-        } else if (request.method === 'tools/call') {
-          const handler = mcpServer.getRequestHandler('tools/call');
-          response = await handler(request);
-        } else {
-          throw new Error(`Unknown method: ${request.method}`);
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(response));
-        
-      } catch (error) {
-        console.error('❌ MCP request error:', error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          error: {
-            code: -32603,
-            message: error.message,
-          },
-        }));
-      }
-    });
-    
-    return;
-  }
-
-  // Root endpoint (info)
-  if (url.pathname === '/') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      name: 'HeadHunter Scrapers MCP',
-      version: '1.0.0',
-      endpoints: {
-        health: 'GET /health',
-        mcp: 'POST /mcp',
-      },
-      tools: [
-        'scrape_recruitcrm',
-        'scrape_turnover',
-      ],
-    }));
-    return;
-  }
-
-  // 404
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found' }));
+// Root endpoint
+app.get("/", (req, res) => {
+  res.json({
+    name: "HeadHunter Scrapers MCP",
+    version: "1.0.0",
+    protocol: "MCP with SSE transport",
+    endpoints: {
+      health: "GET /health",
+      sse: "GET /sse",
+      messages: "POST /messages?sessionId=<id>",
+    },
+    tools: ["scrape_recruitcrm", "scrape_turnover"],
+  });
 });
 
 // ============================================
-// 4. DÉMARRAGE
+// START SERVER
 // ============================================
 
-httpServer.listen(PORT, () => {
-  console.log('🚀 MCP Server started');
-  console.log(`📍 Port: ${PORT}`);
-  console.log(`🔗 Health: http://localhost:${PORT}/health`);
-  console.log(`🔗 MCP: http://localhost:${PORT}/mcp`);
-  console.log('✅ Ready to receive MCP requests');
+app.listen(PORT, () => {
+  console.log(`🚀 MCP Server with SSE running on port ${PORT}`);
+  console.log(`📍 Health: http://localhost:${PORT}/health`);
+  console.log(`📡 SSE: http://localhost:${PORT}/sse`);
+  console.log(`✉️  Messages: http://localhost:${PORT}/messages`);
 });
