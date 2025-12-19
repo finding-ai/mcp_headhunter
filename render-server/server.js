@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import { scrapeRecruitCRM } from './scrapers/recruitcrm.js';
-// import { scrapeTurnover } from './scrapers/turnover.js'; // TODO: à activer plus tard
 
 dotenv.config();
 
@@ -44,9 +43,7 @@ app.get('/', (req, res) => {
     endpoints: [
       'GET  /health',
       'POST /scrape/recruitcrm',
-      'POST /scrape/turnover',
-      'GET  /mcp/tools',
-      'POST /mcp/tools/call'
+      'POST /mcp'
     ]
   });
 });
@@ -64,7 +61,6 @@ app.post('/mcp', async (req, res) => {
 
   try {
     if (method === 'tools/list') {
-      // Liste des tools disponibles
       const response = {
         tools: [
           {
@@ -93,7 +89,6 @@ app.post('/mcp', async (req, res) => {
     }
 
     else if (method === 'tools/call') {
-      // Appel d'un tool
       const { name, arguments: args } = params;
 
       if (name === 'scrape_recruitcrm') {
