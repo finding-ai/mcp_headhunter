@@ -90,12 +90,28 @@ server.tool(
 app.use(express.json());
 
 // Health check
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    service: "headhunter-scrapers-mcp",
-    timestamp: new Date().toISOString(),
-  });
+// APRÈS
+app.get("/", async (req, res) => {
+  const accept = req.headers.accept || '';
+  
+  // Si Dust demande du SSE → on lui donne
+  if (accept.includes('text/event-stream')) {
+    const transport = new SSEServerTransport("/messages", res);
+    transports.set(transport.sessionId, transport);
+    
+    res.on("close", () => {
+      transports.delete(transport.sessionId);
+    });
+    
+    await server.connect(transport);
+  } else {
+    // Sinon → info JSON normale
+    res.json({
+      name: "HeadHunter Scrapers MCP",
+      version: "1.0.0",
+      tools: ["scrape_recruitcrm", "scrape_turnover"],
+    });
+  }
 });
 
 // SSE endpoint - Initialize transport
