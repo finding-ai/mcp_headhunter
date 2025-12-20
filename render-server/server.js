@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHttpServerTransport } from "@modelcontextprotocol/sdk/server/streamable-http.js";
 import express from "express";
 import { z } from "zod";
 import { scrapeRecruitCRM } from './scrapers/recruitcrm.js';
@@ -102,7 +102,7 @@ app.get("/health", (req, res) => {
 app.get("/sse", async (req, res) => {
   console.log("📡 New SSE connection");
 
-  const transport = new SSEServerTransport("/messages", res);
+  const transport = new StreamableHttpServerTransport("/messages", res);
   transports.set(transport.sessionId, transport);
 
   // Cleanup on close
@@ -118,7 +118,7 @@ app.get("/sse", async (req, res) => {
 app.get("/mcp", async (req, res) => {
   console.log("📡 MCP SSE connection");
   
-  const transport = new SSEServerTransport("/messages", res);
+  const transport = new StreamableHttpServerTransport("/messages", res);
   transports.set(transport.sessionId, transport);
   
   res.on("close", () => {
@@ -150,7 +150,7 @@ app.get("/", async (req, res) => {
   if (accept.includes('text/event-stream')) {
     console.log("📡 SSE connection on root endpoint");
     
-    const transport = new SSEServerTransport("/messages", res);
+    const transport = new StreamableHttpServerTransport("/messages", res);
     transports.set(transport.sessionId, transport);
 
     res.on("close", () => {
