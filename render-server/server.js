@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHttpServerTransport } from "@modelcontextprotocol/sdk/server/streamable-http.js";
+import { StreamableHttpServerTransport } from "./transports/streamable-http.js"; // ✅ SEUL CHANGEMENT
 import express from "express";
 import { z } from "zod";
 import { scrapeRecruitCRM } from './scrapers/recruitcrm.js';
@@ -89,29 +89,9 @@ server.tool(
 
 app.use(express.json());
 
-// Health check
-// APRÈS
-app.get("/", async (req, res) => {
-  const accept = req.headers.accept || '';
-  
-  // Si Dust demande du SSE → on lui donne
-  if (accept.includes('text/event-stream')) {
-    const transport = new SSEServerTransport("/messages", res);
-    transports.set(transport.sessionId, transport);
-    
-    res.on("close", () => {
-      transports.delete(transport.sessionId);
-    });
-    
-    await server.connect(transport);
-  } else {
-    // Sinon → info JSON normale
-    res.json({
-      name: "HeadHunter Scrapers MCP",
-      version: "1.0.0",
-      tools: ["scrape_recruitcrm", "scrape_turnover"],
-    });
-  }
+// Health check (si tu veux le garder séparé)
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // SSE endpoint - Initialize transport
@@ -127,6 +107,7 @@ app.get("/sse", async (req, res) => {
     console.log(`🔌 Closed: ${transport.sessionId}`);
   });
 
+  await transport.start();
   await server.connect(transport);
 });
 
@@ -139,9 +120,10 @@ app.get("/mcp", async (req, res) => {
   
   res.on("close", () => {
     transports.delete(transport.sessionId);
-    console.log(`🔌 MCP connection closed: \${transport.sessionId}`);
+    console.log(`🔌 MCP connection closed: ${transport.sessionId}`);
   });
   
+  await transport.start();
   await server.connect(transport);
 });
 
@@ -171,16 +153,17 @@ app.get("/", async (req, res) => {
 
     res.on("close", () => {
       transports.delete(transport.sessionId);
-      console.log(`🔌 Closed: \${transport.sessionId}`);
+      console.log(`🔌 Closed: ${transport.sessionId}`);
     });
 
+    await transport.start();
     await server.connect(transport);
   } else {
     // Requête normale = info JSON
     res.json({
       name: "HeadHunter Scrapers MCP",
       version: "1.0.0",
-      transport: "SSE",
+      transport: "StreamableHttp",
       tools: ["scrape_recruitcrm", "scrape_turnover"],
     });
   }
@@ -191,7 +174,7 @@ app.get("/", async (req, res) => {
 // ============================================
 
 app.listen(PORT, () => {
-  console.log(`🚀 MCP Server with SSE on port ${PORT}`);
+  console.log(`🚀 MCP Server with StreamableHttp on port ${PORT}`);
   console.log(`📍 Health: http://localhost:${PORT}/health`);
   console.log(`📡 SSE: http://localhost:${PORT}/sse`);
 });
